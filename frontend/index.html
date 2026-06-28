@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>交易提醒系统</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Binance Spot</p>
+          <h1>交易提醒系统</h1>
+        </div>
+        <div class="topbar-actions">
+          <div class="status-pill" id="connectionStatus">
+            <span class="dot"></span>
+            <span>准备连接</span>
+          </div>
+          <button type="button" class="theme-toggle-button" id="themeToggleButton" title="主体风格">
+            <span aria-hidden="true">◐</span>
+            <span>主体风格</span>
+          </button>
+          <button type="button" class="user-button" id="userButton">
+            <span class="user-avatar" id="userAvatar">未</span>
+            <span id="userButtonText">登录</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="theme-panel theme-popover hidden" id="themePanel" aria-label="主体风格">
+        <div class="theme-head">
+          <div>
+            <h2>主题风格</h2>
+            <p>选择一套交易终端风格，或自定义关键模块与图表线条颜色</p>
+          </div>
+          <div class="theme-actions">
+            <button type="button" class="ghost-button" id="resetThemeButton">恢复默认</button>
+            <button type="button" class="icon-button" id="closeThemeButton" title="收起主题风格">×</button>
+          </div>
+        </div>
+        <div class="theme-presets" id="themePresets" aria-label="风格预设"></div>
+        <div class="theme-customizer">
+          <label>
+            <span>背景</span>
+            <input type="color" id="themeBgInput" data-theme-color="bg" />
+          </label>
+          <label>
+            <span>主霓虹</span>
+            <input type="color" id="themeAccentInput" data-theme-color="accent" />
+          </label>
+          <label>
+            <span>面板线条</span>
+            <input type="color" id="themeLineInput" data-theme-color="line" />
+          </label>
+          <label>
+            <span>上涨色</span>
+            <input type="color" id="themeUpInput" data-theme-color="up" />
+          </label>
+          <label>
+            <span>下跌色</span>
+            <input type="color" id="themeDownInput" data-theme-color="down" />
+          </label>
+          <label>
+            <span>图表线</span>
+            <input type="color" id="themeChartInput" data-theme-color="chart" />
+          </label>
+        </div>
+      </section>
+
+      <section class="controls" aria-label="行情控制">
+        <label class="field">
+          <span>交易对</span>
+          <div class="symbol-picker" data-picker="market">
+            <button type="button" class="symbol-picker-button" id="symbolPickerButton">
+              <span id="symbolPickerLabel">WLD/USDT</span>
+              <span aria-hidden="true">⌄</span>
+            </button>
+            <div class="symbol-picker-menu hidden" id="symbolPickerMenu">
+              <input id="symbolSearchInput" placeholder="搜索 Top100 币种或交易对" />
+              <div class="symbol-picker-options" id="symbolPickerOptions"></div>
+            </div>
+            <select id="symbolSelect" aria-hidden="true" tabindex="-1"></select>
+          </div>
+        </label>
+
+        <button type="button" class="refresh-button" id="refreshButton" title="刷新行情">
+          <span aria-hidden="true">↻</span>
+          <span>刷新</span>
+        </button>
+      </section>
+
+      <section class="summary-grid" aria-label="行情摘要">
+        <article class="metric primary">
+          <span>最新价格</span>
+          <strong id="lastPrice">--</strong>
+          <small id="priceUnit">USDT</small>
+        </article>
+        <article class="metric">
+          <span>区间涨跌</span>
+          <strong id="changeValue">--</strong>
+          <small id="changePercent">--</small>
+        </article>
+        <article class="metric">
+          <span>区间最高</span>
+          <strong id="highPrice">--</strong>
+          <small>USDT</small>
+        </article>
+        <article class="metric">
+          <span>区间最低</span>
+          <strong id="lowPrice">--</strong>
+          <small>USDT</small>
+        </article>
+      </section>
+
+      <section class="chart-panel" aria-label="价格曲线">
+        <div class="chart-head">
+          <div>
+            <h2 id="chartTitle">WLD/USDT 价格曲线</h2>
+            <p id="chartSubtitle">最近 120 根 K 线</p>
+          </div>
+          <div class="last-updated" id="lastUpdated">尚未更新</div>
+        </div>
+        <div class="chart-toolbar">
+          <div class="chart-tool-group">
+            <span>周期</span>
+            <div class="segmented interval-segmented" id="intervalTabs" role="tablist" aria-label="价格曲线周期"></div>
+          </div>
+          <div class="chart-tool-group">
+            <span>图表</span>
+            <div class="segmented chart-type-segmented" id="chartTypeTabs" role="tablist" aria-label="图表类型">
+              <button type="button" class="active" data-chart-type="candles">蜡烛图</button>
+              <button type="button" data-chart-type="line">折线图</button>
+              <button type="button" data-chart-type="area">面积图</button>
+            </div>
+          </div>
+        </div>
+        <div class="ohlc-panel" id="ohlcPanel">
+          <span>O --</span>
+          <span>H --</span>
+          <span>L --</span>
+          <span>C --</span>
+          <span>V --</span>
+        </div>
+        <div class="chart-wrap">
+          <div id="priceChart" class="price-chart"></div>
+          <div class="loading" id="loadingState">正在加载行情...</div>
+        </div>
+      </section>
+
+      <section class="detail-grid" aria-label="成交详情">
+        <article>
+          <span>成交量</span>
+          <strong id="volumeValue">--</strong>
+        </article>
+        <article>
+          <span>成交额</span>
+          <strong id="quoteVolumeValue">--</strong>
+        </article>
+        <article>
+          <span>K 线数量</span>
+          <strong id="candleCount">--</strong>
+        </article>
+        <article>
+          <span>自动刷新</span>
+          <strong>5 秒</strong>
+        </article>
+      </section>
+
+      <section class="learning-panel" aria-label="交易系统学习">
+        <div class="section-head">
+          <div>
+            <h2>交易系统学习</h2>
+            <p>先理解指标，再组合条件，最后新建策略提醒自己交易</p>
+          </div>
+          <span class="learning-badge">Study Lab</span>
+        </div>
+        <div class="learning-grid">
+          <article class="learning-card" data-learning-topic="kline-tools" tabindex="0" role="button">
+            <span>01</span>
+            <h3>K线与画图工具</h3>
+            <p>优先考虑 TradingView Lightweight Charts、Apache ECharts、Highcharts Stock。当前看板先保留自绘图，后续可升级为专业K线图。</p>
+          </article>
+          <article class="learning-card" data-learning-topic="indicators" tabindex="0" role="button">
+            <span>02</span>
+            <h3>核心技术指标</h3>
+            <p>从 MA/EMA、RSI、MACD、成交量、布林带开始，分别观察趋势、动能、背离、放量和波动区间。</p>
+          </article>
+          <article class="learning-card" data-learning-topic="system-path" tabindex="0" role="button">
+            <span>03</span>
+            <h3>策略搭建路径</h3>
+            <p>先定义交易场景，再选择指标条件，设置必选/可选规则，最后用提醒记录复盘策略是否有效。</p>
+          </article>
+          <article class="learning-card accent" data-learning-topic="alert-flow" tabindex="0" role="button">
+            <span>04</span>
+            <h3>从学习到提醒</h3>
+            <p>学习指标后，把它转成“价格 + 趋势 + 动能 + 成交量”的组合条件，再进入决策提醒模块创建自己的策略。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="workspace-grid" aria-label="决策工作台">
+        <section class="decision-panel" aria-label="决策列表">
+          <div class="section-head">
+            <div>
+              <h2>决策提醒</h2>
+              <p>多条件共振后提醒，不执行自动交易</p>
+            </div>
+            <div class="button-row">
+              <button type="button" class="ghost-button" id="newDecisionButton">新建决策</button>
+              <button type="button" class="ghost-button" id="notifyButton">开启通知</button>
+            </div>
+          </div>
+          <div class="decision-list" id="decisionList"></div>
+        </section>
+
+        <section class="history-panel" aria-label="提醒历史">
+          <div class="section-head compact">
+            <div>
+              <h2>提醒历史</h2>
+              <p>本地保存最近触发记录</p>
+            </div>
+            <button type="button" class="ghost-button" id="clearAlertsButton">清空</button>
+          </div>
+          <div class="history-list" id="alertHistory"></div>
+        </section>
+      </section>
+
+      <footer class="site-footer">
+        <span>copyright@harris</span>
+      </footer>
+    </main>
+
+    <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+    <div class="modal-backdrop hidden" id="authBackdrop"></div>
+    <section class="auth-modal hidden" id="authModal" aria-label="用户登录">
+      <form id="authForm">
+        <div class="drawer-head">
+          <div>
+            <p class="eyebrow">Account</p>
+            <h2 id="authTitle">登录账户</h2>
+          </div>
+          <button type="button" class="icon-button" id="closeAuthButton" title="关闭">×</button>
+        </div>
+        <div class="auth-body">
+          <div class="auth-tabs" role="tablist" aria-label="账户操作">
+            <button type="button" class="active" data-auth-mode="login">登录</button>
+            <button type="button" data-auth-mode="register">注册</button>
+          </div>
+          <label class="field">
+            <span>邮箱</span>
+            <input id="authEmailInput" name="email" type="email" required placeholder="name@example.com" />
+          </label>
+          <label class="field" id="authNameField">
+            <span>昵称</span>
+            <input id="authNameInput" name="name" placeholder="例如：低频交易员" />
+          </label>
+          <label class="field">
+            <span>密码</span>
+            <input id="authPasswordInput" name="password" type="password" required minlength="6" placeholder="至少 6 位" />
+          </label>
+          <p class="auth-note">当前优先使用本地后端账号服务；后端不可用时自动回退浏览器本地演示账号。不接入真实交易所 API Key。</p>
+        </div>
+        <div class="editor-actions">
+          <button type="button" class="ghost-button" id="switchAuthModeButton">创建新账户</button>
+          <button type="submit" class="primary-button" id="authSubmitButton">登录</button>
+        </div>
+      </form>
+    </section>
+
+    <div class="drawer-backdrop hidden" id="accountBackdrop"></div>
+    <aside class="account-drawer hidden" id="accountDrawer" aria-label="用户中心">
+      <div class="drawer-head">
+        <div>
+          <p class="eyebrow">User Center</p>
+          <h2>用户中心</h2>
+        </div>
+        <button type="button" class="icon-button" id="closeAccountButton" title="关闭">×</button>
+      </div>
+      <div class="account-body">
+        <div class="account-card">
+          <span class="user-avatar large" id="accountAvatar">U</span>
+          <div>
+            <h3 id="accountName">未登录</h3>
+            <p id="accountEmail">--</p>
+          </div>
+        </div>
+        <div class="account-grid">
+          <article>
+            <span>自定义决策</span>
+            <strong id="accountDecisionCount">0</strong>
+          </article>
+          <article>
+            <span>提醒记录</span>
+            <strong id="accountAlertCount">0</strong>
+          </article>
+          <article>
+            <span>当前交易对</span>
+            <strong id="accountSymbol">--</strong>
+          </article>
+          <article>
+            <span>界面风格</span>
+            <strong id="accountTheme">--</strong>
+          </article>
+          <article>
+            <span>账户来源</span>
+            <strong id="accountProvider">--</strong>
+          </article>
+        </div>
+        <div class="account-actions">
+          <button type="button" class="ghost-button" id="logoutButton">退出登录</button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="modal-backdrop hidden" id="editorBackdrop"></div>
+    <section class="decision-editor hidden" id="decisionEditor" aria-label="新建决策">
+      <form id="decisionForm">
+        <div class="drawer-head">
+          <div>
+            <p class="eyebrow">Decision Builder</p>
+            <h2 id="editorTitle">新建决策</h2>
+          </div>
+          <button type="button" class="icon-button" id="closeEditorButton" title="关闭">×</button>
+        </div>
+
+        <div class="editor-body">
+          <div class="editor-grid">
+            <label class="field">
+              <span>决策名称</span>
+              <input id="decisionNameInput" name="decisionName" required placeholder="例如：BTC 抄底 1" />
+            </label>
+            <label class="field">
+              <span>交易对</span>
+              <div class="symbol-picker" data-picker="decision">
+                <button type="button" class="symbol-picker-button" id="decisionSymbolPickerButton">
+                  <span id="decisionSymbolPickerLabel">BTC/USDT</span>
+                  <span aria-hidden="true">⌄</span>
+                </button>
+                <div class="symbol-picker-menu hidden" id="decisionSymbolPickerMenu">
+                  <input id="decisionSymbolSearchInput" placeholder="搜索 Top100 币种或交易对" />
+                  <div class="symbol-picker-options" id="decisionSymbolPickerOptions"></div>
+                </div>
+                <select id="decisionSymbolInput" name="decisionSymbol" aria-hidden="true" tabindex="-1"></select>
+              </div>
+            </label>
+            <label class="field">
+              <span>触发方式</span>
+              <select id="decisionTriggerInput" name="decisionTrigger">
+                <option value="all">全部条件满足</option>
+                <option value="required_plus_optional">必选条件 + 可选条件</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>可选条件至少满足</span>
+              <input id="decisionOptionalInput" name="decisionOptional" type="number" min="0" value="1" />
+            </label>
+            <label class="field">
+              <span>冷却时间（分钟）</span>
+              <input id="decisionCooldownInput" name="decisionCooldown" type="number" min="1" value="30" />
+            </label>
+            <label class="field wide">
+              <span>备注</span>
+              <input id="decisionNoteInput" name="decisionNote" placeholder="例如：低位放量、RSI 修复后提醒人工确认" />
+            </label>
+          </div>
+
+          <div class="condition-editor-head">
+            <div>
+              <h3>指标条件</h3>
+              <p>选择一些指标并设置阈值，综合满足后触发提醒</p>
+            </div>
+            <button type="button" class="ghost-button" id="addConditionButton">添加条件</button>
+          </div>
+          <div class="condition-editor-list" id="conditionEditorList"></div>
+        </div>
+
+        <div class="editor-actions">
+          <button type="button" class="ghost-button" id="cancelEditorButton">取消</button>
+          <button type="submit" class="primary-button">保存决策</button>
+        </div>
+      </form>
+    </section>
+
+    <div class="modal-backdrop hidden" id="reviewBackdrop"></div>
+    <section class="auth-modal hidden" id="reviewModal" aria-label="编辑复盘记录">
+      <form id="reviewForm">
+        <div class="drawer-head">
+          <div>
+            <p class="eyebrow">Review Journal</p>
+            <h2>提醒复盘</h2>
+          </div>
+          <button type="button" class="icon-button" id="closeReviewButton" title="关闭">×</button>
+        </div>
+        <div class="auth-body">
+          <label class="field">
+            <span>用户动作</span>
+            <select id="reviewActionInput">
+              <option value="watch">观望</option>
+              <option value="long">做多</option>
+              <option value="short">做空</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>入场价</span>
+            <input id="reviewEntryInput" type="number" step="0.000001" placeholder="可选" />
+          </label>
+          <label class="field">
+            <span>止损价</span>
+            <input id="reviewStopInput" type="number" step="0.000001" placeholder="可选" />
+          </label>
+          <label class="field">
+            <span>止盈价</span>
+            <input id="reviewTakeProfitInput" type="number" step="0.000001" placeholder="可选" />
+          </label>
+          <label class="field">
+            <span>结果</span>
+            <select id="reviewResultInput">
+              <option value="unreviewed">未复盘</option>
+              <option value="valid">有效</option>
+              <option value="false_positive">误报</option>
+              <option value="missed">错过</option>
+              <option value="too_broad">条件过宽</option>
+              <option value="too_strict">条件过严</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>备注</span>
+            <textarea id="reviewNoteInput" rows="4" placeholder="记录当时为什么观望、做多或做空"></textarea>
+          </label>
+        </div>
+        <div class="editor-actions">
+          <button type="button" class="ghost-button" id="cancelReviewButton">取消</button>
+          <button type="submit" class="primary-button">保存复盘</button>
+        </div>
+      </form>
+    </section>
+
+    <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
+    <aside class="decision-drawer hidden" id="decisionDrawer" aria-label="决策详情">
+      <div class="drawer-head">
+        <div>
+          <p class="eyebrow">Decision Detail</p>
+          <h2 id="drawerTitle">决策详情</h2>
+        </div>
+        <button type="button" class="icon-button" id="closeDrawerButton" title="关闭">×</button>
+      </div>
+      <div class="drawer-summary" id="drawerSummary"></div>
+      <div class="condition-list" id="conditionList"></div>
+    </aside>
+
+    <div class="drawer-backdrop hidden" id="learningBackdrop"></div>
+    <aside class="learning-drawer hidden" id="learningDrawer" aria-label="学习详情">
+      <div class="drawer-head">
+        <div>
+          <p class="eyebrow">Study Lab</p>
+          <h2 id="learningTitle">学习详情</h2>
+        </div>
+        <button type="button" class="icon-button" id="closeLearningButton" title="关闭">×</button>
+      </div>
+      <div class="learning-body" id="learningBody"></div>
+    </aside>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

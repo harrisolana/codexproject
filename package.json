@@ -1,0 +1,14 @@
+{
+  "name": "personal-trading-alert-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node backend/index.js",
+    "db:check": "node backend/scripts/db-check.js",
+    "test": "node tests/run-tests.js"
+  },
+  "dependencies": {
+    "lightweight-charts": "^5.2.0"
+  }
+}
