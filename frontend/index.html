@@ -329,7 +329,7 @@
         <div class="editor-body">
           <div class="editor-grid">
             <label class="field">
-              <span>决策名称</span>
+              <span>策略名称</span>
               <input id="decisionNameInput" name="decisionName" required placeholder="例如：BTC 抄底 1" />
             </label>
             <label class="field">
@@ -365,8 +365,27 @@
               <span>备注</span>
               <input id="decisionNoteInput" name="decisionNote" placeholder="例如：低位放量、RSI 修复后提醒人工确认" />
             </label>
+            <label class="field">
+              <span>计划仓位</span>
+              <input id="riskPositionInput" name="riskPosition" placeholder="例如：10%" />
+            </label>
+            <label class="field">
+              <span>最大亏损</span>
+              <input id="riskMaxLossInput" name="riskMaxLoss" placeholder="例如：账户 1%" />
+            </label>
+            <label class="field">
+              <span>止损价</span>
+              <input id="riskStopLossInput" name="riskStopLoss" type="number" step="any" placeholder="人工计划价" />
+            </label>
+            <label class="field">
+              <span>止盈价</span>
+              <input id="riskTakeProfitInput" name="riskTakeProfit" type="number" step="any" placeholder="人工计划价" />
+            </label>
+            <label class="field wide">
+              <span>失效条件</span>
+              <input id="riskInvalidationInput" name="riskInvalidation" placeholder="例如：跌破前低后不再执行该提醒" />
+            </label>
           </div>
-
           <div class="condition-editor-head">
             <div>
               <h3>指标条件</h3>
@@ -466,3 +485,4 @@
     <script type="module" src="./app.js"></script>
   </body>
 </html>
+

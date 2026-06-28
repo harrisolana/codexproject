@@ -13,7 +13,7 @@ import {
 } from "./modules/api-client.js";
 import { createAlertFromResult, shouldCreateAlert, updateActiveSignals, upsertAlertReview } from "../shared/alerts.js";
 import { evaluateDecision as evaluateDecisionWithEngine } from "../shared/decision-engine.js";
-import { fetchCandles as fetchBinanceCandles, normalizeMarketContext as normalizeBinanceMarketContext } from "../shared/data-source-binance.js";
+import { fetchCandlesFromSource, normalizeContextFromSource } from "../shared/data-source-registry.js";
 import { conditionResult as evaluateConditionResult } from "../shared/condition-engine.js";
 import { calculateMa as indicatorMa, calculateRsi as indicatorRsi, calculateVolumeRatio as indicatorVolumeRatio } from "../shared/indicators.js";
 import { loadJson as storageLoadJson, removeItem, saveJson as storageSaveJson } from "./modules/storage.js";
@@ -365,6 +365,11 @@ const els = {
   decisionOptionalInput: document.querySelector("#decisionOptionalInput"),
   decisionCooldownInput: document.querySelector("#decisionCooldownInput"),
   decisionNoteInput: document.querySelector("#decisionNoteInput"),
+  riskPositionInput: document.querySelector("#riskPositionInput"),
+  riskMaxLossInput: document.querySelector("#riskMaxLossInput"),
+  riskStopLossInput: document.querySelector("#riskStopLossInput"),
+  riskTakeProfitInput: document.querySelector("#riskTakeProfitInput"),
+  riskInvalidationInput: document.querySelector("#riskInvalidationInput"),
   reviewModal: document.querySelector("#reviewModal"),
   reviewBackdrop: document.querySelector("#reviewBackdrop"),
   reviewForm: document.querySelector("#reviewForm"),
@@ -646,6 +651,7 @@ async function handleAuthSubmit() {
           : await loginBackendUser({ email, passwordHash });
       state.currentUser = { ...result.user, provider: "backend", token: result.token };
       persistSession(state.currentUser, result.token);
+      await initializeBackendData();
       updateUserUi();
       closeAuthModal();
       showToast(state.authMode === "register" ? "注册成功" : "登录成功", `${state.currentUser.name || state.currentUser.email}，欢迎回来。`);
@@ -855,23 +861,27 @@ function saveUserDecisions() {
 async function initializeBackendData() {
   state.backendAvailable = await isBackendAvailable();
   if (!state.backendAvailable) return;
+  if (state.currentUser?.provider !== "backend" || !state.currentUser?.token) return;
 
   try {
-    const [backendDecisions, backendAlerts] = await Promise.all([fetchBackendDecisions(), fetchBackendAlerts()]);
+    const [backendDecisions, backendAlerts] = await Promise.all([
+      fetchBackendDecisions(state.currentUser.token),
+      fetchBackendAlerts(state.currentUser.token),
+    ]);
 
     if (Array.isArray(backendDecisions) && backendDecisions.length) {
       state.userDecisions = backendDecisions;
       saveJson(DECISION_STORAGE_KEY, state.userDecisions);
       refreshDecisionList();
     } else if (state.userDecisions.length) {
-      await Promise.allSettled(state.userDecisions.map((decision) => saveBackendDecision(decision)));
+      await Promise.allSettled(state.userDecisions.map((decision) => saveBackendDecision(decision, state.currentUser.token)));
     }
 
     if (Array.isArray(backendAlerts) && backendAlerts.length) {
       state.alerts = backendAlerts;
       saveJson(ALERT_STORAGE_KEY, state.alerts);
     } else if (state.alerts.length) {
-      await Promise.allSettled(state.alerts.map((alert) => saveBackendAlert(alert)));
+      await Promise.allSettled(state.alerts.map((alert) => saveBackendAlert(alert, state.currentUser.token)));
     }
   } catch (error) {
     state.backendAvailable = false;
@@ -880,29 +890,29 @@ async function initializeBackendData() {
 }
 
 function persistDecisionToBackend(decision) {
-  if (!state.backendAvailable) return;
-  saveBackendDecision(decision).catch((error) => {
+  if (!state.backendAvailable || state.currentUser?.provider !== "backend") return;
+  saveBackendDecision(decision, state.currentUser.token).catch((error) => {
     console.warn("后端保存决策失败，已保留本地数据。", error);
   });
 }
 
 function deleteDecisionFromBackend(decisionId) {
-  if (!state.backendAvailable) return;
-  deleteBackendDecision(decisionId).catch((error) => {
+  if (!state.backendAvailable || state.currentUser?.provider !== "backend") return;
+  deleteBackendDecision(decisionId, state.currentUser.token).catch((error) => {
     console.warn("后端删除决策失败，本地删除已完成。", error);
   });
 }
 
 function persistAlertToBackend(alert) {
-  if (!state.backendAvailable) return;
-  saveBackendAlert(alert).catch((error) => {
+  if (!state.backendAvailable || state.currentUser?.provider !== "backend") return;
+  saveBackendAlert(alert, state.currentUser.token).catch((error) => {
     console.warn("后端保存提醒失败，已保留本地数据。", error);
   });
 }
 
 function persistAlertReviewToBackend(alertId, review) {
-  if (!state.backendAvailable) return;
-  saveBackendAlertReview(alertId, review).catch((error) => {
+  if (!state.backendAvailable || state.currentUser?.provider !== "backend") return;
+  saveBackendAlertReview(alertId, review, state.currentUser.token).catch((error) => {
     console.warn("后端保存复盘失败，已保留本地数据。", error);
   });
 }
@@ -1293,7 +1303,7 @@ function parseCandle(row) {
 }
 
 async function fetchCandles(symbol, interval, limit = LIMIT) {
-  return fetchBinanceCandles(symbol, interval, limit);
+  return fetchCandlesFromSource("binance", symbol, interval, limit);
 }
 
 async function getMarketContext(symbol, timeframe) {
@@ -1307,7 +1317,7 @@ async function getMarketContext(symbol, timeframe) {
 }
 
 function normalizeMarketContext({ source, symbol, timeframe, candles }) {
-  return normalizeBinanceMarketContext({ source, symbol, timeframe, candles });
+  return normalizeContextFromSource(source, { source, symbol, timeframe, candles });
 }
 
 function average(values) {
@@ -1874,6 +1884,11 @@ function openDecisionEditor(decisionId = null) {
   els.decisionOptionalInput.value = existing?.minOptionalMet ?? 1;
   els.decisionCooldownInput.value = existing?.cooldownMinutes || 30;
   els.decisionNoteInput.value = existing?.note || "";
+  els.riskPositionInput.value = existing?.risk?.plannedPosition || "";
+  els.riskMaxLossInput.value = existing?.risk?.maxLoss || "";
+  els.riskStopLossInput.value = existing?.risk?.stopLoss ?? "";
+  els.riskTakeProfitInput.value = existing?.risk?.takeProfit ?? "";
+  els.riskInvalidationInput.value = existing?.risk?.invalidation || "";
   renderConditionEditorList(existing?.conditions?.length ? existing.conditions : [createEmptyCondition()]);
   els.editor.classList.remove("hidden");
   els.editorBackdrop.classList.remove("hidden");
@@ -2030,6 +2045,7 @@ function saveDecisionFromEditor() {
   }
 
   const id = state.editingDecisionId || `custom-${Date.now()}`;
+  const existingIndex = state.userDecisions.findIndex((item) => item.id === id);
   const decision = {
     id,
     custom: true,
@@ -2040,10 +2056,17 @@ function saveDecisionFromEditor() {
     minOptionalMet: Number(els.decisionOptionalInput.value) || 0,
     cooldownMinutes: Number(els.decisionCooldownInput.value) || 30,
     note: els.decisionNoteInput.value.trim(),
+    risk: {
+      plannedPosition: els.riskPositionInput.value.trim(),
+      maxLoss: els.riskMaxLossInput.value.trim(),
+      stopLoss: els.riskStopLossInput.value === "" ? "" : Number(els.riskStopLossInput.value),
+      takeProfit: els.riskTakeProfitInput.value === "" ? "" : Number(els.riskTakeProfitInput.value),
+      invalidation: els.riskInvalidationInput.value.trim(),
+    },
+    version: existingIndex >= 0 ? (state.userDecisions[existingIndex].version || 1) + 1 : 1,
     conditions,
   };
 
-  const existingIndex = state.userDecisions.findIndex((item) => item.id === id);
   if (existingIndex >= 0) state.userDecisions.splice(existingIndex, 1, decision);
   else state.userDecisions.unshift(decision);
 
@@ -2427,8 +2450,8 @@ window.addEventListener("resize", () => {
 
 renderThemePresets();
 applyTheme(currentTheme(), false);
-await initializeBackendData();
 await restoreSession();
+await initializeBackendData();
 updateUserUi();
 setSymbolSelection("market", state.symbol);
 setSymbolSelection("decision", "BTCUSDT");

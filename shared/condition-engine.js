@@ -54,9 +54,9 @@ export function buildDistanceText(current, target, direction, suffix, formatters
   const targetText = suffix === "%" ? formatPercent(target) : `${formatNumber(target, suffix === "x" ? 2 : 6)}${suffix}`;
 
   if (direction === "above") {
-    return current >= target ? `当前 ${currentText}，目标 ${targetText}` : `当前 ${currentText}，距离目标 ${targetText}`;
+    return current >= target ? `当前 ${currentText}，目标 ${targetText}` : `当前 ${currentText}，尚未达到 ${targetText}`;
   }
-  return current <= target ? `当前 ${currentText}，目标 ${targetText}` : `当前 ${currentText}，目标 ${targetText}`;
+  return current <= target ? `当前 ${currentText}，目标 ${targetText}` : `当前 ${currentText}，需要低于 ${targetText}`;
 }
 
 export function compareCondition(condition, current, target, direction, label, suffix = "", formatters = {}) {

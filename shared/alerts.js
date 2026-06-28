@@ -25,6 +25,8 @@ export function createAlertFromResult(result, now = Date.now()) {
     name: result.decision.name,
     symbol: result.decision.symbol,
     createdAt: now,
+    source: result.source || result.decision.source || "strategy_engine",
+    timeframe: [...new Set(result.decision.conditions.map((condition) => condition.timeframe).filter(Boolean))].join("+"),
     triggerPrice: result.conditionResults.find((item) => item.type.includes("price"))?.currentValue ?? null,
     summary: result.reason,
     conditions: result.conditionResults,

@@ -26,8 +26,14 @@ export async function isBackendAvailable() {
   }
 }
 
-export function fetchBackendDecisions() {
-  return requestJson("/api/decisions");
+function authHeaders(token) {
+  return token ? { authorization: `Bearer ${token}` } : {};
+}
+
+export function fetchBackendDecisions(token) {
+  return requestJson("/api/decisions", {
+    headers: authHeaders(token),
+  });
 }
 
 export function registerBackendUser({ email, name, passwordHash }) {
@@ -57,33 +63,43 @@ export function logoutBackendUser(token) {
   });
 }
 
-export function saveBackendDecision(decision) {
+export function saveBackendDecision(decision, token) {
   return requestJson("/api/decisions", {
     method: "POST",
+    headers: authHeaders(token),
     body: JSON.stringify(decision),
   });
 }
 
-export function deleteBackendDecision(decisionId) {
+export function deleteBackendDecision(decisionId, token) {
   return requestJson(`/api/decisions/${encodeURIComponent(decisionId)}`, {
     method: "DELETE",
+    headers: authHeaders(token),
   });
 }
 
-export function fetchBackendAlerts() {
-  return requestJson("/api/alerts");
+export function fetchBackendAlerts(token) {
+  return requestJson("/api/alerts", {
+    headers: authHeaders(token),
+  });
 }
 
-export function saveBackendAlert(alert) {
+export function saveBackendAlert(alert, token) {
   return requestJson("/api/alerts", {
     method: "POST",
+    headers: authHeaders(token),
     body: JSON.stringify(alert),
   });
 }
 
-export function saveBackendAlertReview(alertId, review) {
+export function saveBackendAlertReview(alertId, review, token) {
   return requestJson(`/api/alerts/${encodeURIComponent(alertId)}/review`, {
     method: "PATCH",
+    headers: authHeaders(token),
     body: JSON.stringify(review),
   });
+}
+
+export function fetchDatabaseStats() {
+  return requestJson("/api/admin/database-stats");
 }

@@ -3,6 +3,7 @@ import { calculateMa, calculateRsi, calculateVolumeRatio } from "../shared/indic
 import { conditionResult } from "../shared/condition-engine.js";
 import { summarizeDecision } from "../shared/decision-engine.js";
 import { createAlertFromResult, shouldCreateAlert, updateActiveSignals } from "../shared/alerts.js";
+import { runBacktest } from "../shared/backtest.js";
 
 function candle(close, volume = 100) {
   return {
@@ -92,5 +93,54 @@ assert.equal(shouldCreateAlert(alertResult, { [alert.signalKey]: 1000 }, {}, 100
 const activeSignals = updateActiveSignals([alertResult], {});
 assert.equal(shouldCreateAlert(alertResult, {}, activeSignals, 1000 + 31 * 60_000).ok, false, "Active signal should not repeat while still met");
 assert.equal(shouldCreateAlert(alertResult, {}, {}, 1000 + 31 * 60_000).ok, true, "Signal can alert again after it has reset");
+
+const oneHourSignal = {
+  ...alertResult,
+  decision: { ...alertResult.decision, conditions: [{ timeframe: "1h" }] },
+};
+assert.notEqual(
+  createAlertFromResult(oneHourSignal, 1000).signalKey,
+  alert.signalKey,
+  "Different timeframes should produce different signal keys",
+);
+
+const changedTargetSignal = {
+  ...alertResult,
+  conditionResults: [metCondition("c1"), { ...metCondition("c2"), targetValue: 2 }],
+};
+assert.notEqual(
+  createAlertFromResult(changedTargetSignal, 1000).signalKey,
+  alert.signalKey,
+  "Changed target parameters should produce a new signal key",
+);
+
+const resetSignals = updateActiveSignals([], activeSignals);
+assert.equal(
+  shouldCreateAlert(alertResult, {}, resetSignals, 1000 + 31 * 60_000).ok,
+  true,
+  "A signal can alert after conditions first become unmet and then become met again",
+);
+
+const backtestDecision = {
+  id: "bt1",
+  symbol: "BTCUSDT",
+  triggerMode: "all",
+  conditions: [
+    {
+      id: "price-above-10",
+      name: "Price above 10",
+      type: "price_above",
+      required: true,
+      params: { value: 10 },
+    },
+  ],
+};
+const backtestCandles = [8, 9, 10, 11, 12, 9, 11].map((value, index) => ({
+  ...candle(value),
+  openTime: index,
+}));
+const backtest = runBacktest(backtestDecision, backtestCandles, { warmup: 1 });
+assert.equal(backtest.triggerCount, 2, "Backtest should count new trigger waves, not every candle while conditions remain met");
+assert.equal(backtest.winRate, null, "Backtest win rate is a placeholder until review/outcome rules are added");
 
 console.log("All tests passed");

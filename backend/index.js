@@ -8,6 +8,7 @@ import {
   findSession,
   findUserByEmail,
   findUserById,
+  getDatabaseStats,
   insertSession,
   insertUser,
   listAlerts,
@@ -56,6 +57,12 @@ function hashSecret(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function requireUser(user, response) {
+  if (user) return true;
+  sendJson(response, 401, { error: "unauthorized" });
+  return false;
+}
+
 function publicUser(user) {
   if (!user) return null;
   return {
@@ -97,7 +104,7 @@ async function handleApi(request, response, url) {
   if (url.pathname === "/api/auth/register" && request.method === "POST") {
     const body = await readBody(request);
     const email = normalizeEmail(body.email);
-    const name = String(body.name || email.split("@")[0] || "交易员").trim();
+    const name = String(body.name || email.split("@")[0] || "Trader").trim();
     const passwordHash = String(body.passwordHash || "");
     if (!email || !passwordHash) {
       sendJson(response, 400, { error: "missing_credentials" });
@@ -159,14 +166,17 @@ async function handleApi(request, response, url) {
   }
 
   if (url.pathname === "/api/decisions") {
+    const user = await currentUserFromRequest(request);
+    if (!requireUser(user, response)) return;
+
     if (request.method === "GET") {
-      sendJson(response, 200, listDecisions());
+      sendJson(response, 200, listDecisions(user.id));
       return;
     }
     if (request.method === "POST") {
       const body = await readBody(request);
       const item = { ...body, id: body.id || `decision-${Date.now()}`, updatedAt: Date.now() };
-      upsertDecision(item);
+      upsertDecision(user.id, item);
       sendJson(response, 201, item);
       return;
     }
@@ -174,21 +184,31 @@ async function handleApi(request, response, url) {
 
   const decisionMatch = url.pathname.match(/^\/api\/decisions\/([^/]+)$/);
   if (decisionMatch && request.method === "DELETE") {
+    const user = await currentUserFromRequest(request);
+    if (!requireUser(user, response)) return;
     const decisionId = decodeURIComponent(decisionMatch[1]);
-    deleteDecision(decisionId);
+    deleteDecision(user.id, decisionId);
     sendJson(response, 200, { ok: true, id: decisionId });
     return;
   }
 
   if (url.pathname === "/api/alerts") {
+    const user = await currentUserFromRequest(request);
+    if (!requireUser(user, response)) return;
+
     if (request.method === "GET") {
-      sendJson(response, 200, listAlerts());
+      sendJson(response, 200, listAlerts(user.id));
       return;
     }
     if (request.method === "POST") {
       const body = await readBody(request);
-      const item = { ...body, id: body.id || `alert-${Date.now()}`, createdAt: body.createdAt || Date.now() };
-      upsertAlert(item);
+      const item = {
+        ...body,
+        id: body.id || `alert-${Date.now()}`,
+        createdAt: body.createdAt || Date.now(),
+        source: body.source || "strategy_engine",
+      };
+      upsertAlert(user.id, item);
       sendJson(response, 201, item);
       return;
     }
@@ -196,9 +216,16 @@ async function handleApi(request, response, url) {
 
   const reviewMatch = url.pathname.match(/^\/api\/alerts\/([^/]+)\/review$/);
   if (reviewMatch && request.method === "PATCH") {
+    const user = await currentUserFromRequest(request);
+    if (!requireUser(user, response)) return;
     const alertId = decodeURIComponent(reviewMatch[1]);
     const body = await readBody(request);
-    sendJson(response, 200, updateAlertReview(alertId, body));
+    sendJson(response, 200, updateAlertReview(user.id, alertId, body));
+    return;
+  }
+
+  if (url.pathname === "/api/admin/database-stats" && request.method === "GET") {
+    sendJson(response, 200, getDatabaseStats());
     return;
   }
 
